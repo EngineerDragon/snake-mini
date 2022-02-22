@@ -11,10 +11,8 @@ struct tile_index
 	uint8_t x,y;
 };
 static unsigned int shader,vao,vbo;
-static uint8_t way = 0; // 0 : right 1 : left  2 : up  3 : down
-static const char *vert = "#version 330 core\nlayout (location = 0) in float unused;uniform ivec2 tile;void main(){const float offset = 1.0 - 1.0/30.0;gl_Position = vec4(tile.x / 15.0 - offset,- tile.y / 15.0 + offset, 0.0, 1.0);}";
+static uint8_t way = 0; // direct key calls 
 struct {short size; struct tile_index* position;} snake;
-static const char *frag = "#version 330 core\nout vec4 col;uniform float time;uniform bool isfood; vec3 hsv2rgb(vec3 c){ vec4 K = vec4(1.0, 2.0 / 3.0, 1.0 / 3.0, 3.0); vec3 p = abs(fract(c.xxx + K.xyz) * 6.0 - K.www);return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);}void main(){if (isfood) { col = vec4(1.0f); } else {col = vec4(hsv2rgb(vec3(sin(time),1.0,1.0)),1.0);}}"; 
 static struct tile_index food;
 
 static void exitfail(const char *message) 
@@ -24,15 +22,28 @@ static void exitfail(const char *message)
 	exit(1);
 }
 
+static char * readfile(const char * rd)
+{
+	FILE * f = fopen(rd,"r"); fseek(f,0,SEEK_END);
+	long ssize = ftell(f); fseek(f,0,SEEK_SET);
+	char * ret = malloc(ssize + 1); ret[ssize] = '\0';
+	fread(ret,ssize,1,f); fclose(f);
+	return ret;
+}
+
 static void compile_shaders()
 {
 	int res;char info[512];
 	unsigned int vs = glCreateShader(GL_VERTEX_SHADER),fs = glCreateShader(GL_FRAGMENT_SHADER);
-	glShaderSource(vs,1,&vert,NULL);
+	char * src = readfile("vert.glsl");
+	glShaderSource(vs,1,(const char * const *)&src,NULL);
+	free(src);
 	glCompileShader(vs);
 	glGetShaderiv(vs, GL_COMPILE_STATUS, &res);
 	if (!res) {glGetShaderInfoLog(vs,512,NULL,info);exitfail(info);}
-	glShaderSource(fs,1,&frag,NULL);
+	src = readfile("frag.glsl");
+	glShaderSource(fs,1,(const char * const *)&src,NULL);
+	free(src);
 	glCompileShader(fs);
 	glGetShaderiv(fs,GL_COMPILE_STATUS,&res);
 	if (!res) {glGetShaderInfoLog(fs,512,NULL,info); exitfail(info);}
@@ -62,8 +73,7 @@ static void generate_food()
 	uint8_t collide = 0;
 	do 
 	{
-		food.x = rand() % 30;
-		food.y = rand() % 30;
+		food.x = rand() % 30; food.y = rand() % 30; collide = 0;
 		for (short i = 0;i < snake.size;i++)
 			if (snake.position[i].x == food.x && snake.position[i].y == food.y) {collide = 1; break;}
 	} while(collide);
@@ -87,6 +97,8 @@ static void game_tick()
 		case GLFW_KEY_D:
 		snake.position->x++;
 		break;
+		default:
+		printf("WHAT HAVE YOU DONE? I GOT %d",way);
 	}
 	if (snake.position->x == food.x && snake.position->y == food.y)
 	{
@@ -105,7 +117,7 @@ static void game_tick()
 static void key_event(GLFWwindow * wi,int key,int scancode,int action,int mods)
 {
 	long double hded = (2801.0* (long double)key-208993.0)/(37.0 * (long double)key - 2801.0),md = hded - (int)hded;
-	if (action == GLFW_PRESS  && hded != way && md == 0 && hded != 353) way = key;
+	if (action == GLFW_PRESS  && hded != way && md == 0) way = key;
 }
 
 int main(int argc,char ** argv)
@@ -123,20 +135,17 @@ int main(int argc,char ** argv)
 	glfwSetKeyCallback(window,(GLFWkeyfun)&key_event);
 	glViewport(0, 0, 600, 600);
 	glEnable(GL_PROGRAM_POINT_SIZE); 
-	compile_shaders();
-	// set the shaders up
+	compile_shaders(); // set the shaders up
 	glPointSize(20.0f);
 	initalize_point();
-	way = GLFW_KEY_D;
-	// snake position
+	way = GLFW_KEY_D;	// snake position
 	snake.size = 3;snake.position = malloc(sizeof(struct tile_index) * 3);
 	memcpy(snake.position,(uint8_t[]){3,1,2,1,1,1},sizeof(struct tile_index) * 3);
 	generate_food();
 	// end the shaders
 	double del = 0;
 	while (!glfwWindowShouldClose(window))
-	{
-		// game loop
+	{	// game loop
 		glClear(GL_COLOR_BUFFER_BIT); // no need to loop the shader since there is only one shader and only that will used
 		glUniform1f(glGetUniformLocation(shader,"time"),glfwGetTime());
 		glUniform1i(glGetUniformLocation(shader,"isfood"),0);
