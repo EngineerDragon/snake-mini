@@ -12,7 +12,7 @@ Very informative, I know.
 
 #### If you are going to compile from windows : 
 ```bat
-gcc -std=c99 main.c glad.c -o snake-mini -lglfw3 -lopengl32 -lgdi
+gcc -std=c99 main.c glad.c -o snake-mini -lglfw3 -lopengl32 -lgdi32
 ```
 I am currently extremely lazy to do a makefile supporting windows as well just use that line.
 
